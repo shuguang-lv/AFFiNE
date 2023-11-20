@@ -12,6 +12,7 @@ export enum RouteLogic {
   PUSH = 'push',
 }
 
+// todo: add a name -> path helper in the results
 export function useNavigateHelper() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -23,6 +24,31 @@ export function useNavigateHelper() {
       logic: RouteLogic = RouteLogic.PUSH
     ) => {
       return navigate(`/workspace/${workspaceId}/${pageId}`, {
+        replace: logic === RouteLogic.REPLACE,
+      });
+    },
+    [navigate]
+  );
+  const jumpToPageBlock = useCallback(
+    (
+      workspaceId: string,
+      pageId: string,
+      blockId: string,
+      logic: RouteLogic = RouteLogic.PUSH
+    ) => {
+      return navigate(`/workspace/${workspaceId}/${pageId}#${blockId}`, {
+        replace: logic === RouteLogic.REPLACE,
+      });
+    },
+    [navigate]
+  );
+  const jumpToCollection = useCallback(
+    (
+      workspaceId: string,
+      collectionId: string,
+      logic: RouteLogic = RouteLogic.PUSH
+    ) => {
+      return navigate(`/workspace/${workspaceId}/collection/${collectionId}`, {
         replace: logic === RouteLogic.REPLACE,
       });
     },
@@ -109,6 +135,7 @@ export function useNavigateHelper() {
   return useMemo(
     () => ({
       jumpToPage,
+      jumpToPageBlock,
       jumpToPublicWorkspacePage,
       jumpToSubPath,
       jumpToIndex,
@@ -116,16 +143,19 @@ export function useNavigateHelper() {
       openPage,
       jumpToExpired,
       jumpToSignIn,
+      jumpToCollection,
     }),
     [
-      jumpTo404,
-      jumpToExpired,
-      jumpToIndex,
       jumpToPage,
+      jumpToPageBlock,
       jumpToPublicWorkspacePage,
-      jumpToSignIn,
       jumpToSubPath,
+      jumpToIndex,
+      jumpTo404,
       openPage,
+      jumpToExpired,
+      jumpToSignIn,
+      jumpToCollection,
     ]
   );
 }

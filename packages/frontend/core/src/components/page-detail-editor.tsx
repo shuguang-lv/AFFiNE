@@ -1,8 +1,9 @@
 import './page-detail-editor.css';
 
 import { PageNotFoundError } from '@affine/env/constant';
-import type { LayoutNode } from '@affine/sdk//entry';
+import type { LayoutNode } from '@affine/sdk/entry';
 import { rootBlockHubAtom } from '@affine/workspace/atom';
+import type { BlockHub } from '@blocksuite/blocks';
 import type { EditorContainer } from '@blocksuite/editor';
 import { assertExists, DisposableGroup } from '@blocksuite/global/utils';
 import type { Page, Workspace } from '@blocksuite/store';
@@ -25,36 +26,73 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { useLocation } from 'react-router-dom';
 
-import { pageSettingFamily } from '../atoms';
-import { fontStyleOptions, useAppSetting } from '../atoms/settings';
+import { type PageMode, pageSettingFamily } from '../atoms';
+import { fontStyleOptions } from '../atoms/settings';
+import { useAppSettingHelper } from '../hooks/affine/use-app-setting-helper';
+import { useBlockSuiteMetaHelper } from '../hooks/affine/use-block-suite-meta-helper';
 import { BlockSuiteEditor as Editor } from './blocksuite/block-suite-editor';
 import { Bookmark } from './bookmark';
 import * as styles from './page-detail-editor.css';
 import { editorContainer, pluginContainer } from './page-detail-editor.css';
 import { TrashButtonGroup } from './pure/trash-button-group';
 
+declare global {
+  // eslint-disable-next-line no-var
+  var currentEditor: EditorContainer | undefined;
+}
+
 export type OnLoadEditor = (page: Page, editor: EditorContainer) => () => void;
 
 export interface PageDetailEditorProps {
   isPublic?: boolean;
+  publishMode?: PageMode;
   workspace: Workspace;
   pageId: string;
-  onInit: (
-    page: Page,
-    editor: Readonly<EditorContainer>
-  ) => Promise<void> | void;
   onLoad?: OnLoadEditor;
+}
+
+function useRouterHash() {
+  return useLocation().hash.substring(1);
+}
+
+function useCreateAndSetRootBlockHub(
+  editor?: EditorContainer,
+  showBlockHub?: boolean
+) {
+  const setBlockHub = useSetAtom(rootBlockHubAtom);
+  useEffect(() => {
+    let canceled = false;
+    let blockHub: BlockHub | undefined;
+    if (editor && showBlockHub) {
+      editor
+        .createBlockHub()
+        .then(bh => {
+          if (canceled) {
+            return;
+          }
+          blockHub = bh;
+          setBlockHub(blockHub);
+        })
+        .catch(console.error);
+    }
+    return () => {
+      canceled = true;
+      blockHub?.remove();
+    };
+  }, [editor, showBlockHub, setBlockHub]);
 }
 
 const EditorWrapper = memo(function EditorWrapper({
   workspace,
   pageId,
-  onInit,
   onLoad,
   isPublic,
+  publishMode,
 }: PageDetailEditorProps) {
   const page = useBlockSuiteWorkspacePage(workspace, pageId);
   if (!page) {
@@ -63,12 +101,24 @@ const EditorWrapper = memo(function EditorWrapper({
   const meta = useBlockSuitePageMeta(workspace).find(
     meta => meta.id === pageId
   );
+
+  const { switchToEdgelessMode, switchToPageMode } =
+    useBlockSuiteMetaHelper(workspace);
+
   const pageSettingAtom = pageSettingFamily(pageId);
   const pageSetting = useAtomValue(pageSettingAtom);
-  const currentMode = pageSetting?.mode ?? 'page';
 
-  const setBlockHub = useSetAtom(rootBlockHubAtom);
-  const [appSettings] = useAppSetting();
+  const mode = useMemo(() => {
+    const currentMode = pageSetting.mode;
+    const shareMode = publishMode || currentMode;
+
+    if (isPublic) {
+      return shareMode;
+    }
+    return currentMode;
+  }, [isPublic, publishMode, pageSetting.mode]);
+
+  const { appSettings } = useAppSettingHelper();
 
   assertExists(meta);
   const value = useMemo(() => {
@@ -78,6 +128,70 @@ const EditorWrapper = memo(function EditorWrapper({
     assertExists(fontStyle);
     return fontStyle.value;
   }, [appSettings.fontStyle]);
+
+  const setEditorMode = useCallback(
+    (mode: 'page' | 'edgeless') => {
+      if (isPublic) {
+        return;
+      }
+      if (mode === 'edgeless') {
+        switchToEdgelessMode(pageId);
+      } else {
+        switchToPageMode(pageId);
+      }
+    },
+    [isPublic, switchToEdgelessMode, pageId, switchToPageMode]
+  );
+
+  const [editor, setEditor] = useState<EditorContainer>();
+  const blockId = useRouterHash();
+
+  useCreateAndSetRootBlockHub(editor, !meta.trash);
+
+  const onLoadEditor = useCallback(
+    (editor: EditorContainer) => {
+      // debug current detail editor
+      globalThis.currentEditor = editor;
+      setEditor(editor);
+      const disposableGroup = new DisposableGroup();
+      disposableGroup.add(
+        page.slots.blockUpdated.once(() => {
+          page.workspace.setPageMeta(page.id, {
+            updatedDate: Date.now(),
+          });
+        })
+      );
+      localStorage.setItem('last_page_id', page.id);
+      if (onLoad) {
+        disposableGroup.add(onLoad(page, editor));
+      }
+      const rootStore = getCurrentStore();
+      const editorItems = rootStore.get(pluginEditorAtom);
+      let disposes: (() => void)[] = [];
+      const renderTimeout = window.setTimeout(() => {
+        disposes = Object.entries(editorItems).map(([id, editorItem]) => {
+          const div = document.createElement('div');
+          div.setAttribute('plugin-id', id);
+          const cleanup = editorItem(div, editor);
+          assertExists(parent);
+          document.body.appendChild(div);
+          return () => {
+            cleanup();
+            document.body.removeChild(div);
+          };
+        });
+      });
+
+      return () => {
+        disposableGroup.dispose();
+        clearTimeout(renderTimeout);
+        window.setTimeout(() => {
+          disposes.forEach(dispose => dispose());
+        });
+      };
+    },
+    [onLoad, page]
+  );
 
   return (
     <>
@@ -91,56 +205,11 @@ const EditorWrapper = memo(function EditorWrapper({
             '--affine-font-family': value,
           } as CSSProperties
         }
-        mode={isPublic ? 'page' : currentMode}
+        mode={mode}
         page={page}
-        onInit={useCallback(
-          (page: Page, editor: Readonly<EditorContainer>) => {
-            onInit(page, editor);
-          },
-          [onInit]
-        )}
-        setBlockHub={setBlockHub}
-        onLoad={useCallback(
-          (page: Page, editor: EditorContainer) => {
-            const disposableGroup = new DisposableGroup();
-            disposableGroup.add(
-              page.slots.blockUpdated.once(() => {
-                page.workspace.setPageMeta(page.id, {
-                  updatedDate: Date.now(),
-                });
-              })
-            );
-            localStorage.setItem('last_page_id', page.id);
-            if (onLoad) {
-              disposableGroup.add(onLoad(page, editor));
-            }
-            const rootStore = getCurrentStore();
-            const editorItems = rootStore.get(pluginEditorAtom);
-            let disposes: (() => void)[] = [];
-            const renderTimeout = window.setTimeout(() => {
-              disposes = Object.entries(editorItems).map(([id, editorItem]) => {
-                const div = document.createElement('div');
-                div.setAttribute('plugin-id', id);
-                const cleanup = editorItem(div, editor);
-                assertExists(parent);
-                document.body.appendChild(div);
-                return () => {
-                  cleanup();
-                  document.body.removeChild(div);
-                };
-              });
-            });
-
-            return () => {
-              disposableGroup.dispose();
-              clearTimeout(renderTimeout);
-              window.setTimeout(() => {
-                disposes.forEach(dispose => dispose());
-              });
-            };
-          },
-          [onLoad]
-        )}
+        onModeChange={setEditorMode}
+        defaultSelectedBlockId={blockId}
+        onLoadEditor={onLoadEditor}
       />
       {meta.trash && <TrashButtonGroup />}
       <Bookmark page={page} />
@@ -280,10 +349,8 @@ export const PageDetailEditor = (props: PageDetailEditorProps) => {
   }
 
   return (
-    <>
-      <Suspense>
-        <LayoutPanel node={layout} editorProps={props} depth={0} />
-      </Suspense>
-    </>
+    <Suspense>
+      <LayoutPanel node={layout} editorProps={props} depth={0} />
+    </Suspense>
   );
 };

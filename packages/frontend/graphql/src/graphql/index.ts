@@ -79,6 +79,22 @@ query allBlobSizes {
 }`,
 };
 
+export const cancelSubscriptionMutation = {
+  id: 'cancelSubscriptionMutation' as const,
+  operationName: 'cancelSubscription',
+  definitionName: 'cancelSubscription',
+  containsFile: false,
+  query: `
+mutation cancelSubscription($idempotencyKey: String!) {
+  cancelSubscription(idempotencyKey: $idempotencyKey) {
+    id
+    status
+    nextBillAt
+    canceledAt
+  }
+}`,
+};
+
 export const changeEmailMutation = {
   id: 'changeEmailMutation' as const,
   operationName: 'changeEmail',
@@ -108,6 +124,28 @@ mutation changePassword($token: String!, $newPassword: String!) {
     avatarUrl
     email
   }
+}`,
+};
+
+export const checkoutMutation = {
+  id: 'checkoutMutation' as const,
+  operationName: 'checkout',
+  definitionName: 'checkout',
+  containsFile: false,
+  query: `
+mutation checkout($recurring: SubscriptionRecurring!, $idempotencyKey: String!) {
+  checkout(recurring: $recurring, idempotencyKey: $idempotencyKey)
+}`,
+};
+
+export const createCustomerPortalMutation = {
+  id: 'createCustomerPortalMutation' as const,
+  operationName: 'createCustomerPortal',
+  definitionName: 'createCustomerPortal',
+  containsFile: false,
+  query: `
+mutation createCustomerPortal {
+  createCustomerPortal
 }`,
 };
 
@@ -282,15 +320,18 @@ query getWorkspacePublicById($id: String!) {
 }`,
 };
 
-export const getWorkspaceSharedPagesQuery = {
-  id: 'getWorkspaceSharedPagesQuery' as const,
-  operationName: 'getWorkspaceSharedPages',
+export const getWorkspacePublicPagesQuery = {
+  id: 'getWorkspacePublicPagesQuery' as const,
+  operationName: 'getWorkspacePublicPages',
   definitionName: 'workspace',
   containsFile: false,
   query: `
-query getWorkspaceSharedPages($workspaceId: String!) {
+query getWorkspacePublicPages($workspaceId: String!) {
   workspace(id: $workspaceId) {
-    sharedPages
+    publicPages {
+      id
+      mode
+    }
   }
 }`,
 };
@@ -321,6 +362,43 @@ query getWorkspaces {
 }`,
 };
 
+export const getInvoicesCountQuery = {
+  id: 'getInvoicesCountQuery' as const,
+  operationName: 'getInvoicesCount',
+  definitionName: 'currentUser',
+  containsFile: false,
+  query: `
+query getInvoicesCount {
+  currentUser {
+    invoiceCount
+  }
+}`,
+};
+
+export const invoicesQuery = {
+  id: 'invoicesQuery' as const,
+  operationName: 'invoices',
+  definitionName: 'currentUser',
+  containsFile: false,
+  query: `
+query invoices($take: Int!, $skip: Int!) {
+  currentUser {
+    invoices(take: $take, skip: $skip) {
+      id
+      status
+      plan
+      recurring
+      currency
+      amount
+      reason
+      lastPaymentError
+      link
+      createdAt
+    }
+  }
+}`,
+};
+
 export const leaveWorkspaceMutation = {
   id: 'leaveWorkspaceMutation' as const,
   operationName: 'leaveWorkspace',
@@ -333,6 +411,37 @@ mutation leaveWorkspace($workspaceId: String!, $workspaceName: String!, $sendLea
     workspaceName: $workspaceName
     sendLeaveMail: $sendLeaveMail
   )
+}`,
+};
+
+export const pricesQuery = {
+  id: 'pricesQuery' as const,
+  operationName: 'prices',
+  definitionName: 'prices',
+  containsFile: false,
+  query: `
+query prices {
+  prices {
+    type
+    plan
+    currency
+    amount
+    yearlyAmount
+  }
+}`,
+};
+
+export const publishPageMutation = {
+  id: 'publishPageMutation' as const,
+  operationName: 'publishPage',
+  definitionName: 'publishPage',
+  containsFile: false,
+  query: `
+mutation publishPage($workspaceId: String!, $pageId: String!, $mode: PublicPageMode = Page) {
+  publishPage(workspaceId: $workspaceId, pageId: $pageId, mode: $mode) {
+    id
+    mode
+  }
 }`,
 };
 
@@ -349,6 +458,23 @@ mutation removeAvatar {
 }`,
 };
 
+export const resumeSubscriptionMutation = {
+  id: 'resumeSubscriptionMutation' as const,
+  operationName: 'resumeSubscription',
+  definitionName: 'resumeSubscription',
+  containsFile: false,
+  query: `
+mutation resumeSubscription($idempotencyKey: String!) {
+  resumeSubscription(idempotencyKey: $idempotencyKey) {
+    id
+    status
+    nextBillAt
+    start
+    end
+  }
+}`,
+};
+
 export const revokeMemberPermissionMutation = {
   id: 'revokeMemberPermissionMutation' as const,
   operationName: 'revokeMemberPermission',
@@ -360,14 +486,18 @@ mutation revokeMemberPermission($workspaceId: String!, $userId: String!) {
 }`,
 };
 
-export const revokePageMutation = {
-  id: 'revokePageMutation' as const,
-  operationName: 'revokePage',
-  definitionName: 'revokePage',
+export const revokePublicPageMutation = {
+  id: 'revokePublicPageMutation' as const,
+  operationName: 'revokePublicPage',
+  definitionName: 'revokePublicPage',
   containsFile: false,
   query: `
-mutation revokePage($workspaceId: String!, $pageId: String!) {
-  revokePage(workspaceId: $workspaceId, pageId: $pageId)
+mutation revokePublicPage($workspaceId: String!, $pageId: String!) {
+  revokePublicPage(workspaceId: $workspaceId, pageId: $pageId) {
+    id
+    mode
+    public
+  }
 }`,
 };
 
@@ -428,17 +558,6 @@ mutation setWorkspacePublicById($id: ID!, $public: Boolean!) {
 }`,
 };
 
-export const sharePageMutation = {
-  id: 'sharePageMutation' as const,
-  operationName: 'sharePage',
-  definitionName: 'sharePage',
-  containsFile: false,
-  query: `
-mutation sharePage($workspaceId: String!, $pageId: String!) {
-  sharePage(workspaceId: $workspaceId, pageId: $pageId)
-}`,
-};
-
 export const signInMutation = {
   id: 'signInMutation' as const,
   operationName: 'signIn',
@@ -465,6 +584,47 @@ mutation signUp($name: String!, $email: String!, $password: String!) {
     token {
       token
     }
+  }
+}`,
+};
+
+export const subscriptionQuery = {
+  id: 'subscriptionQuery' as const,
+  operationName: 'subscription',
+  definitionName: 'currentUser',
+  containsFile: false,
+  query: `
+query subscription {
+  currentUser {
+    subscription {
+      id
+      status
+      plan
+      recurring
+      start
+      end
+      nextBillAt
+      canceledAt
+    }
+  }
+}`,
+};
+
+export const updateSubscriptionMutation = {
+  id: 'updateSubscriptionMutation' as const,
+  operationName: 'updateSubscription',
+  definitionName: 'updateSubscriptionRecurring',
+  containsFile: false,
+  query: `
+mutation updateSubscription($recurring: SubscriptionRecurring!, $idempotencyKey: String!) {
+  updateSubscriptionRecurring(
+    recurring: $recurring
+    idempotencyKey: $idempotencyKey
+  ) {
+    id
+    plan
+    recurring
+    nextBillAt
   }
 }`,
 };
@@ -513,16 +673,5 @@ mutation acceptInviteByInviteId($workspaceId: String!, $inviteId: String!, $send
     inviteId: $inviteId
     sendAcceptMail: $sendAcceptMail
   )
-}`,
-};
-
-export const acceptInviteByWorkspaceIdMutation = {
-  id: 'acceptInviteByWorkspaceIdMutation' as const,
-  operationName: 'acceptInviteByWorkspaceId',
-  definitionName: 'acceptInvite',
-  containsFile: false,
-  query: `
-mutation acceptInviteByWorkspaceId($workspaceId: String!) {
-  acceptInvite(workspaceId: $workspaceId)
 }`,
 };

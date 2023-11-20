@@ -8,6 +8,10 @@
   /*transition: all 0.1s;*/
 }
 
+:root {
+  --noise-background: url(./noise.avif);
+}
+
 html,
 body,
 h1,
@@ -289,8 +293,8 @@ affine-block-hub {
 button,
 input,
 select,
-textarea,
-[role='button'] {
+textarea
+/* [role='button']  */ {
   -webkit-app-region: no-drag;
 }
 

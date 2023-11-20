@@ -53,6 +53,13 @@ app:
       secretName: oauth-github
       clientId: ''
       clientSecret: ''
+  payment:
+    stripe:
+      secretName: 'stripe'
+      apiKey: ''
+      webhookKey: ''
+  features:
+    earlyAccessPreview: false
 
 serviceAccount:
   create: true

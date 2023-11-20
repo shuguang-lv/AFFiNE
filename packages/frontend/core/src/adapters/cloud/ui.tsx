@@ -3,7 +3,6 @@ import type {
   WorkspaceFlavour,
   WorkspaceUISchema,
 } from '@affine/env/workspace';
-import { initEmptyPage } from '@toeverything/infra/blocksuite';
 import { lazy, useCallback } from 'react';
 
 import type { OnLoadEditor } from '../../components/page-detail-editor';
@@ -11,11 +10,9 @@ import { useCurrentUser } from '../../hooks/affine/use-current-user';
 import { useIsWorkspaceOwner } from '../../hooks/affine/use-is-workspace-owner';
 import { useWorkspace } from '../../hooks/use-workspace';
 import {
-  BlockSuitePageList,
   NewWorkspaceSettingDetail,
   PageDetailEditor,
   Provider,
-  WorkspaceHeader,
 } from '../shared';
 
 const LoginCard = lazy(() =>
@@ -27,7 +24,6 @@ const LoginCard = lazy(() =>
 export const UI = {
   Provider,
   LoginCard,
-  Header: WorkspaceHeader,
   PageDetail: ({ currentWorkspaceId, currentPageId, onLoadEditor }) => {
     const workspace = useWorkspace(currentWorkspaceId);
     const page = workspace.blockSuiteWorkspace.getPage(currentPageId);
@@ -51,23 +47,10 @@ export const UI = {
     );
 
     return (
-      <>
-        <PageDetailEditor
-          pageId={currentPageId}
-          onInit={useCallback(async page => initEmptyPage(page), [])}
-          onLoad={onLoad}
-          workspace={workspace.blockSuiteWorkspace}
-        />
-      </>
-    );
-  },
-  PageList: ({ blockSuiteWorkspace, onOpenPage, collection }) => {
-    return (
-      <BlockSuitePageList
-        listType="all"
-        collection={collection}
-        onOpenPage={onOpenPage}
-        blockSuiteWorkspace={blockSuiteWorkspace}
+      <PageDetailEditor
+        pageId={currentPageId}
+        onLoad={onLoad}
+        workspace={workspace.blockSuiteWorkspace}
       />
     );
   },

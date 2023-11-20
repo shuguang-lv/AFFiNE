@@ -1,5 +1,6 @@
 import { WorkspaceSubPath } from '@affine/env/workspace';
 import { assertExists } from '@blocksuite/global/utils';
+import { useAsyncCallback } from '@toeverything/hooks/affine-async-hooks';
 import { useAtom } from 'jotai';
 import type { ReactElement } from 'react';
 import { lazy, Suspense, useCallback } from 'react';
@@ -12,6 +13,7 @@ import {
   openSettingModalAtom,
   openSignOutModalAtom,
 } from '../atoms';
+import { PaymentDisableModal } from '../components/affine/payment-disable';
 import { useCurrentWorkspace } from '../hooks/current/use-current-workspace';
 import { useNavigateHelper } from '../hooks/use-navigate-helper';
 import { signOutCloud } from '../utils/cloud-utils';
@@ -153,13 +155,10 @@ export const SignOutConfirmModal = () => {
   const { jumpToIndex } = useNavigateHelper();
   const [open, setOpen] = useAtom(openSignOutModalAtom);
 
-  const onConfirm = useCallback(async () => {
+  const onConfirm = useAsyncCallback(async () => {
     setOpen(false);
-    signOutCloud()
-      .then(() => {
-        jumpToIndex();
-      })
-      .catch(console.error);
+    await signOutCloud();
+    jumpToIndex();
   }, [jumpToIndex, setOpen]);
 
   return (
@@ -201,6 +200,7 @@ export const AllWorkspaceModals = (): ReactElement => {
       <Suspense>
         <SignOutConfirmModal />
       </Suspense>
+      <PaymentDisableModal />
     </>
   );
 };

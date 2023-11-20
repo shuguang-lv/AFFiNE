@@ -1,4 +1,12 @@
 import { useMediaQuery, useTheme } from '@mui/material';
+import clsx from 'clsx';
+import {
+  type BaseSyntheticEvent,
+  forwardRef,
+  type PropsWithChildren,
+} from 'react';
+
+import * as styles from './page-list.css';
 
 export const useIsSmallDevices = () => {
   const theme = useTheme();
@@ -69,3 +77,106 @@ export const formatDate = (date: Date): string => {
   // MM-DD HH:mm
   return `${month}-${day} ${hours}:${minutes}`;
 };
+
+export type ColWrapperProps = PropsWithChildren<{
+  flex?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+  alignment?: 'start' | 'center' | 'end';
+  styles?: React.CSSProperties;
+  hideInSmallContainer?: boolean;
+}> &
+  React.HTMLAttributes<Element>;
+
+export const ColWrapper = forwardRef<HTMLDivElement, ColWrapperProps>(
+  function ColWrapper(
+    {
+      flex,
+      alignment,
+      hideInSmallContainer,
+      className,
+      style,
+      children,
+      ...rest
+    }: ColWrapperProps,
+    ref
+  ) {
+    return (
+      <div
+        {...rest}
+        ref={ref}
+        data-testid="page-list-flex-wrapper"
+        style={{
+          ...style,
+          flexGrow: flex,
+          flexBasis: flex ? `${(flex / 12) * 100}%` : 'auto',
+          justifyContent: alignment,
+        }}
+        className={clsx(
+          className,
+          styles.colWrapper,
+          hideInSmallContainer ? styles.hideInSmallContainer : null
+        )}
+      >
+        {children}
+      </div>
+    );
+  }
+);
+
+export const withinDaysAgo = (date: Date, days: number): boolean => {
+  const startDate = new Date();
+  const day = startDate.getDate();
+  const month = startDate.getMonth();
+  const year = startDate.getFullYear();
+  return new Date(year, month, day - days + 1) <= date;
+};
+
+export const betweenDaysAgo = (
+  date: Date,
+  days0: number,
+  days1: number
+): boolean => {
+  return !withinDaysAgo(date, days0) && withinDaysAgo(date, days1);
+};
+
+export function stopPropagation(event: BaseSyntheticEvent) {
+  event.stopPropagation();
+  event.preventDefault();
+}
+export function stopPropagationWithoutPrevent(event: BaseSyntheticEvent) {
+  event.stopPropagation();
+}
+
+// credit: https://github.com/facebook/fbjs/blob/main/packages/fbjs/src/core/shallowEqual.js
+export function shallowEqual(objA: any, objB: any) {
+  if (Object.is(objA, objB)) {
+    return true;
+  }
+
+  if (
+    typeof objA !== 'object' ||
+    objA === null ||
+    typeof objB !== 'object' ||
+    objB === null
+  ) {
+    return false;
+  }
+
+  const keysA = Object.keys(objA);
+  const keysB = Object.keys(objB);
+
+  if (keysA.length !== keysB.length) {
+    return false;
+  }
+
+  // Test for A's keys different from B.
+  for (let i = 0; i < keysA.length; i++) {
+    if (
+      !Object.prototype.hasOwnProperty.call(objB, keysA[i]) ||
+      !Object.is(objA[keysA[i]], objB[keysA[i]])
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}

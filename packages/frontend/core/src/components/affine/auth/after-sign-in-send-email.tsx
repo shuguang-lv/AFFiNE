@@ -7,13 +7,15 @@ import {
 import { Trans } from '@affine/i18n';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { Button } from '@toeverything/components/button';
-import { useCallback } from 'react';
+import { useAsyncCallback } from '@toeverything/hooks/affine-async-hooks';
+import React, { useCallback } from 'react';
 
 import { useCurrentLoginStatus } from '../../../hooks/affine/use-current-login-status';
 import type { AuthPanelProps } from './index';
 import * as style from './style.css';
 import { useAuth } from './use-auth';
 import { Captcha, useCaptcha } from './use-captcha';
+import { useSubscriptionSearch } from './use-subscription';
 
 export const AfterSignInSendEmail = ({
   setAuthState,
@@ -23,17 +25,26 @@ export const AfterSignInSendEmail = ({
   const t = useAFFiNEI18N();
   const loginStatus = useCurrentLoginStatus();
   const [verifyToken, challenge] = useCaptcha();
+  const subscriptionData = useSubscriptionSearch();
 
   const { resendCountDown, allowSendEmail, signIn } = useAuth();
   if (loginStatus === 'authenticated') {
     onSignedIn?.();
   }
 
-  const onResendClick = useCallback(async () => {
+  const onResendClick = useAsyncCallback(async () => {
     if (verifyToken) {
       await signIn(email, verifyToken, challenge);
     }
   }, [challenge, email, signIn, verifyToken]);
+
+  const onSignInWithPasswordClick = useCallback(() => {
+    setAuthState('signInWithPassword');
+  }, [setAuthState]);
+
+  const onBackBottomClick = useCallback(() => {
+    setAuthState('signIn');
+  }, [setAuthState]);
 
   return (
     <>
@@ -75,26 +86,25 @@ export const AfterSignInSendEmail = ({
       </div>
 
       <div className={style.authMessage} style={{ marginTop: 20 }}>
-        {/*prettier-ignore*/}
-        <Trans i18nKey="com.affine.auth.sign.auth.code.message.password">
-          If you haven&apos;t received the email, please check your spam folder.
-          Or <span
-            className="link"
-            data-testid='sign-in-with-password'
-            onClick={useCallback(() => {
-              setAuthState('signInWithPassword');
-            }, [setAuthState])}
-          >
-            sign in with password
-          </span> instead.
-        </Trans>
+        {t['com.affine.auth.sign.auth.code.message']()}
+        {subscriptionData ? null : ( // If with payment, just support email sign in to avoid duplicate redirect to the same stripe url.
+          <React.Fragment>
+            &nbsp;
+            {/*prettier-ignore*/}
+            <Trans i18nKey="com.affine.auth.sign.auth.code.message.password">
+              Or <span
+                className="link"
+                data-testid='sign-in-with-password'
+                onClick={onSignInWithPasswordClick}
+              >
+                sign in with password
+              </span> instead.
+            </Trans>
+          </React.Fragment>
+        )}
       </div>
 
-      <BackButton
-        onClick={useCallback(() => {
-          setAuthState('signIn');
-        }, [setAuthState])}
-      />
+      <BackButton onClick={onBackBottomClick} />
     </>
   );
 };

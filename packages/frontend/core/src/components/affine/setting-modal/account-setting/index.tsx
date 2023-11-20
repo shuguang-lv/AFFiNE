@@ -1,4 +1,5 @@
 import { FlexWrapper, Input } from '@affine/component';
+import { pushNotificationAtom } from '@affine/component/notification-center';
 import {
   SettingHeader,
   SettingRow,
@@ -7,6 +8,7 @@ import {
 import {
   allBlobSizesQuery,
   removeAvatarMutation,
+  SubscriptionPlan,
   uploadAvatarMutation,
 } from '@affine/graphql';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
@@ -14,23 +16,33 @@ import { useMutation, useQuery } from '@affine/workspace/affine/gql';
 import { ArrowRightSmallIcon, CameraIcon } from '@blocksuite/icons';
 import { Avatar } from '@toeverything/components/avatar';
 import { Button } from '@toeverything/components/button';
+import { useAsyncCallback } from '@toeverything/hooks/affine-async-hooks';
+import { validateAndReduceImage } from '@toeverything/hooks/use-block-suite-workspace-avatar-url';
+import bytes from 'bytes';
 import { useSetAtom } from 'jotai';
 import {
   type FC,
   type MouseEvent,
   Suspense,
   useCallback,
+  useMemo,
   useState,
 } from 'react';
 
-import { authAtom, openSignOutModalAtom } from '../../../../atoms';
+import {
+  authAtom,
+  openSettingModalAtom,
+  openSignOutModalAtom,
+} from '../../../../atoms';
 import { useCurrentUser } from '../../../../hooks/affine/use-current-user';
+import { useUserSubscription } from '../../../../hooks/use-subscription';
 import { Upload } from '../../../pure/file-upload';
 import * as style from './style.css';
 
 export const UserAvatar = () => {
   const t = useAFFiNEI18N();
   const user = useCurrentUser();
+  const pushNotification = useSetAtom(pushNotificationAtom);
 
   const { trigger: avatarTrigger } = useMutation({
     mutation: uploadAvatarMutation,
@@ -39,16 +51,30 @@ export const UserAvatar = () => {
     mutation: removeAvatarMutation,
   });
 
-  const handleUpdateUserAvatar = useCallback(
+  const handleUpdateUserAvatar = useAsyncCallback(
     async (file: File) => {
-      await avatarTrigger({
-        avatar: file,
-      });
-      // XXX: This is a hack to force the user to update, since next-auth can not only use update function without params
-      user.update({ name: user.name }).catch(console.error);
+      try {
+        const reducedFile = await validateAndReduceImage(file);
+        await avatarTrigger({
+          avatar: reducedFile, // Pass the reducedFile directly to the avatarTrigger
+        });
+        // XXX: This is a hack to force the user to update, since next-auth can not only use update function without params
+        await user.update({ name: user.name });
+        pushNotification({
+          title: 'Update user avatar success',
+          type: 'success',
+        });
+      } catch (e) {
+        pushNotification({
+          title: 'Update user avatar failed',
+          message: String(e),
+          type: 'error',
+        });
+      }
     },
-    [avatarTrigger, user]
+    [avatarTrigger, pushNotification, user]
   );
+
   const handleRemoveUserAvatar = useCallback(
     async (e: MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
@@ -58,6 +84,7 @@ export const UserAvatar = () => {
     },
     [removeAvatarTrigger, user]
   );
+
   return (
     <Upload
       accept="image/gif,image/jpeg,image/jpg,image/png,image/svg"
@@ -95,47 +122,46 @@ export const AvatarAndName = () => {
   }, [allowUpdate, input, user]);
 
   return (
-    <>
-      <SettingRow
-        name={t['com.affine.settings.profile']()}
-        desc={t['com.affine.settings.profile.message']()}
-        spreadCol={false}
-      >
-        <FlexWrapper style={{ margin: '12px 0 24px 0' }} alignItems="center">
-          <Suspense>
-            <UserAvatar />
-          </Suspense>
+    <SettingRow
+      name={t['com.affine.settings.profile']()}
+      desc={t['com.affine.settings.profile.message']()}
+      spreadCol={false}
+    >
+      <FlexWrapper style={{ margin: '12px 0 24px 0' }} alignItems="center">
+        <Suspense>
+          <UserAvatar />
+        </Suspense>
 
-          <div className={style.profileInputWrapper}>
-            <label>{t['com.affine.settings.profile.name']()}</label>
-            <FlexWrapper alignItems="center">
-              <Input
-                defaultValue={input}
-                data-testid="user-name-input"
-                placeholder={t['com.affine.settings.profile.placeholder']()}
-                maxLength={64}
-                minLength={0}
-                width={280}
-                height={28}
-                onChange={setInput}
-                onEnter={handleUpdateUserName}
-              />
-              {allowUpdate ? (
-                <Button
-                  data-testid="save-user-name"
-                  onClick={handleUpdateUserName}
-                  style={{
-                    marginLeft: '12px',
-                  }}
-                >
-                  {t['com.affine.editCollection.save']()}
-                </Button>
-              ) : null}
-            </FlexWrapper>
-          </div>
-        </FlexWrapper>
-      </SettingRow>
-    </>
+        <div className={style.profileInputWrapper}>
+          <label>{t['com.affine.settings.profile.name']()}</label>
+          <FlexWrapper alignItems="center">
+            <Input
+              defaultValue={input}
+              data-testid="user-name-input"
+              placeholder={t['com.affine.settings.profile.placeholder']()}
+              maxLength={64}
+              minLength={0}
+              width={280}
+              height={28}
+              onChange={setInput}
+              onEnter={handleUpdateUserName}
+            />
+            {allowUpdate ? (
+              <Button
+                data-testid="save-user-name"
+                onClick={handleUpdateUserName}
+                className={style.button}
+                style={{
+                  marginLeft: '12px',
+                }}
+              >
+                {t['com.affine.editCollection.save']()}
+              </Button>
+            ) : null}
+          </FlexWrapper>
+        </div>
+      </FlexWrapper>
+    </SettingRow>
   );
 };
 
@@ -146,7 +172,21 @@ const StoragePanel = () => {
     query: allBlobSizesQuery,
   });
 
-  const onUpgrade = useCallback(() => {}, []);
+  const [subscription] = useUserSubscription();
+  const plan = subscription?.plan ?? SubscriptionPlan.Free;
+
+  const maxLimit = useMemo(() => {
+    return bytes.parse(plan === SubscriptionPlan.Free ? '10GB' : '100GB');
+  }, [plan]);
+
+  const setSettingModalAtom = useSetAtom(openSettingModalAtom);
+  const onUpgrade = useCallback(() => {
+    setSettingModalAtom({
+      open: true,
+      activeTab: 'plans',
+      workspaceId: null,
+    });
+  }, [setSettingModalAtom]);
 
   return (
     <SettingRow
@@ -155,7 +195,8 @@ const StoragePanel = () => {
       spreadCol={false}
     >
       <StorageProgress
-        max={10737418240}
+        max={maxLimit}
+        plan={plan}
         value={data.collectAllBlobSizes.size}
         onUpgrade={onUpgrade}
       />
@@ -200,7 +241,7 @@ export const AccountSetting: FC = () => {
       />
       <AvatarAndName />
       <SettingRow name={t['com.affine.settings.email']()} desc={user.email}>
-        <Button onClick={onChangeEmail}>
+        <Button onClick={onChangeEmail} className={style.button}>
           {t['com.affine.settings.email.action']()}
         </Button>
       </SettingRow>
@@ -208,7 +249,7 @@ export const AccountSetting: FC = () => {
         name={t['com.affine.settings.password']()}
         desc={t['com.affine.settings.password.message']()}
       >
-        <Button onClick={onPasswordButtonClick}>
+        <Button onClick={onPasswordButtonClick} className={style.button}>
           {user.hasPassword
             ? t['com.affine.settings.password.action.change']()
             : t['com.affine.settings.password.action.set']()}

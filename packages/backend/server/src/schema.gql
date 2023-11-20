@@ -23,6 +23,11 @@ type UserType {
   """User password has been set"""
   hasPassword: Boolean
   token: TokenType!
+
+  """Get user invoice count"""
+  invoiceCount: Int!
+  subscription: UserSubscription
+  invoices(take: Int = 8, skip: Int): [UserInvoice!]!
 }
 
 """
@@ -53,6 +58,74 @@ type TokenType {
   token: String!
   refresh: String!
   sessionToken: String
+}
+
+type SubscriptionPrice {
+  type: String!
+  plan: SubscriptionPlan!
+  currency: String!
+  amount: Int!
+  yearlyAmount: Int!
+}
+
+enum SubscriptionPlan {
+  Free
+  Pro
+  Team
+  Enterprise
+}
+
+type UserSubscription {
+  id: String!
+  plan: SubscriptionPlan!
+  recurring: SubscriptionRecurring!
+  status: SubscriptionStatus!
+  start: DateTime!
+  end: DateTime!
+  trialStart: DateTime
+  trialEnd: DateTime
+  nextBillAt: DateTime
+  canceledAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum SubscriptionRecurring {
+  Monthly
+  Yearly
+}
+
+enum SubscriptionStatus {
+  Active
+  PastDue
+  Unpaid
+  Canceled
+  Incomplete
+  Paused
+  IncompleteExpired
+  Trialing
+}
+
+type UserInvoice {
+  id: String!
+  plan: SubscriptionPlan!
+  recurring: SubscriptionRecurring!
+  currency: String!
+  amount: Int!
+  status: InvoiceStatus!
+  reason: String!
+  lastPaymentError: String
+  link: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum InvoiceStatus {
+  Draft
+  Open
+  Void
+  Paid
+  Uncollectible
 }
 
 type InviteUserType {
@@ -111,11 +184,14 @@ type WorkspaceType {
   """member count of workspace"""
   memberCount: Int!
 
-  """Shared pages of workspace"""
-  sharedPages: [String!]!
-
   """Owner of workspace"""
   owner: UserType!
+
+  """Shared pages of workspace"""
+  sharedPages: [String!]! @deprecated(reason: "use WorkspaceType.publicPages")
+
+  """Public pages of a workspace"""
+  publicPages: [WorkspacePage!]!
 }
 
 type InvitationWorkspaceType {
@@ -143,6 +219,19 @@ type InvitationType {
   invitee: UserType!
 }
 
+type WorkspacePage {
+  id: String!
+  workspaceId: String!
+  mode: PublicPageMode!
+  public: Boolean!
+}
+
+"""The mode which the public page default in"""
+enum PublicPageMode {
+  Page
+  Edgeless
+}
+
 type Query {
   """Get is owner of workspace"""
   isOwner(workspaceId: String!): Boolean!
@@ -166,10 +255,11 @@ type Query {
   checkBlobSize(workspaceId: String!, size: Float!): WorkspaceBlobSizes!
 
   """Get current user"""
-  currentUser: UserType!
+  currentUser: UserType
 
   """Get user by email"""
   user(email: String!): UserType
+  prices: [SubscriptionPrice!]!
 }
 
 type Mutation {
@@ -191,12 +281,13 @@ type Mutation {
   invite(workspaceId: String!, email: String!, permission: Permission!, sendInviteMail: Boolean): String!
   revoke(workspaceId: String!, userId: String!): Boolean!
   acceptInviteById(workspaceId: String!, inviteId: String!, sendAcceptMail: Boolean): Boolean!
-  acceptInvite(workspaceId: String!): Boolean!
   leaveWorkspace(workspaceId: String!, workspaceName: String!, sendLeaveMail: Boolean): Boolean!
-  sharePage(workspaceId: String!, pageId: String!): Boolean!
-  revokePage(workspaceId: String!, pageId: String!): Boolean!
   setBlob(workspaceId: String!, blob: Upload!): String!
   deleteBlob(workspaceId: String!, hash: String!): Boolean!
+  sharePage(workspaceId: String!, pageId: String!): Boolean! @deprecated(reason: "renamed to publicPage")
+  publishPage(workspaceId: String!, pageId: String!, mode: PublicPageMode = Page): WorkspacePage!
+  revokePage(workspaceId: String!, pageId: String!): Boolean! @deprecated(reason: "use revokePublicPage")
+  revokePublicPage(workspaceId: String!, pageId: String!): WorkspacePage!
 
   """Upload user avatar"""
   uploadAvatar(avatar: Upload!): UserType!
@@ -205,6 +296,15 @@ type Mutation {
   removeAvatar: RemoveAvatar!
   deleteAccount: DeleteAccount!
   addToNewFeaturesWaitingList(type: NewFeaturesKind!, email: String!): AddToNewFeaturesWaitingList!
+
+  """Create a subscription checkout link of stripe"""
+  checkout(recurring: SubscriptionRecurring!, idempotencyKey: String!): String!
+
+  """Create a stripe customer portal to manage payment methods"""
+  createCustomerPortal: String!
+  cancelSubscription(idempotencyKey: String!): UserSubscription!
+  resumeSubscription(idempotencyKey: String!): UserSubscription!
+  updateSubscriptionRecurring(recurring: SubscriptionRecurring!, idempotencyKey: String!): UserSubscription!
 }
 
 """The `Upload` scalar type represents a file upload."""

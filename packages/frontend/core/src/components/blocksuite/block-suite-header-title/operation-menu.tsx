@@ -18,6 +18,7 @@ import {
   MenuItem,
   MenuSeparator,
 } from '@toeverything/components/menu';
+import { useAsyncCallback } from '@toeverything/hooks/affine-async-hooks';
 import {
   useBlockSuitePageMeta,
   usePageMetaHelper,
@@ -70,8 +71,8 @@ export const PageMenu = ({ rename, pageId }: PageMenuProps) => {
   const handleOpenTrashModal = useCallback(() => {
     setTrashModal({
       open: true,
-      pageId,
-      pageTitle: pageMeta.title,
+      pageIds: [pageId],
+      pageTitles: [pageMeta.title],
     });
   }, [pageId, pageMeta.title, setTrashModal]);
 
@@ -99,7 +100,7 @@ export const PageMenu = ({ rename, pageId }: PageMenuProps) => {
   const exportHandler = useExportPage(currentPage);
   const setPageMode = useSetAtom(setPageModeAtom);
 
-  const duplicate = useCallback(async () => {
+  const duplicate = useAsyncCallback(async () => {
     const currentPageMeta = currentPage.meta;
     const newPage = createPage();
     await newPage.waitForLoaded();
@@ -218,17 +219,15 @@ export const PageMenu = ({ rename, pageId }: PageMenuProps) => {
     return null;
   }
   return (
-    <>
-      <FlexWrapper alignItems="center" justifyContent="center" ref={ref}>
-        <Menu
-          items={EditMenu}
-          contentOptions={{
-            align: 'center',
-          }}
-        >
-          <HeaderDropDownButton />
-        </Menu>
-      </FlexWrapper>
-    </>
+    <FlexWrapper alignItems="center" justifyContent="center" ref={ref}>
+      <Menu
+        items={EditMenu}
+        contentOptions={{
+          align: 'center',
+        }}
+      >
+        <HeaderDropDownButton />
+      </Menu>
+    </FlexWrapper>
   );
 };

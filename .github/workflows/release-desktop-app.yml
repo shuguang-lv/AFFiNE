@@ -40,7 +40,6 @@ env:
 jobs:
   before-make:
     runs-on: ubuntu-latest
-    environment: production
     outputs:
       RELEASE_VERSION: ${{ steps.get-canary-version.outputs.RELEASE_VERSION }}
     steps:
@@ -76,7 +75,6 @@ jobs:
           path: packages/frontend/electron/resources/web-static
 
   make-distribution:
-    environment: production
     strategy:
       # all combinations: macos-latest x64, macos-latest arm64, ubuntu-latest x64
       # For windows, we need a separate approach
@@ -111,9 +109,7 @@ jobs:
           hard-link-nm: false
           build-plugins: false
           nmHoistingLimits: workspaces
-      - name: Setup Maker
-        timeout-minutes: 10
-        uses: ./.github/actions/setup-maker
+          enableScripts: false
       - name: Build AFFiNE native
         uses: ./.github/actions/build-rust
         with:
@@ -162,7 +158,6 @@ jobs:
           path: builds
 
   package-distribution-windows:
-    environment: production
     strategy:
       # all combinations: macos-latest x64, macos-latest arm64, ubuntu-latest x64
       # For windows, we need a separate approach
@@ -188,9 +183,6 @@ jobs:
           hard-link-nm: false
           build-plugins: false
           nmHoistingLimits: workspaces
-      - name: Setup Maker
-        timeout-minutes: 10
-        uses: ./.github/actions/setup-maker
       - name: Build AFFiNE native
         uses: ./.github/actions/build-rust
         with:
@@ -241,7 +233,6 @@ jobs:
       artifact-name: packaged-win32-x64
 
   make-windows-installer:
-    environment: production
     needs: sign-packaged-artifacts-windows
     strategy:
       # all combinations: macos-latest x64, macos-latest arm64, ubuntu-latest x64
@@ -295,7 +286,6 @@ jobs:
       artifact-name: installer-win32-x64
 
   finalize-installer-windows:
-    environment: production
     needs: sign-installer-artifacts-windows
     strategy:
       # all combinations: macos-latest x64, macos-latest arm64, ubuntu-latest x64
@@ -361,7 +351,7 @@ jobs:
         with:
           name: affine-linux-x64-builds
           path: ./
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
       - name: Generate Release yml
@@ -371,8 +361,6 @@ jobs:
           RELEASE_VERSION: ${{ github.event.inputs.version || needs.before-make.outputs.RELEASE_VERSION }}
       - name: Create Release Draft
         uses: softprops/action-gh-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         with:
           name: ${{ github.event.inputs.version || needs.before-make.outputs.RELEASE_VERSION }}
           body: ''

@@ -75,6 +75,8 @@ spec:
             value: "{{ .Values.app.objectStorage.r2.enabled }}"
           - name: ENABLE_CAPTCHA
             value: "{{ .Values.app.captcha.enabled }}"
+          - name: FEATURES_EARLY_ACCESS_PREVIEW
+            value: "{{ .Values.app.features.earlyAccessPreview }}"
           - name: OAUTH_EMAIL_SENDER
             valueFrom:
               secretKeyRef:
@@ -100,6 +102,16 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.oauth.email.secretName }}"
                 key: password
+          - name: STRIPE_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: "{{ .Values.app.payment.stripe.secretName }}"
+                key: stripeAPIKey
+          - name: STRIPE_WEBHOOK_KEY
+            valueFrom:
+              secretKeyRef:
+                name: "{{ .Values.app.payment.stripe.secretName }}"
+                key: stripeWebhookKey
           - name: DOC_MERGE_INTERVAL
             value: "{{ .Values.app.doc.mergeInterval }}"
           {{ if .Values.app.experimental.enableJwstCodec }}

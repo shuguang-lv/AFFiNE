@@ -1,22 +1,21 @@
-import { Content, displayFlex } from '@affine/component';
 import {
   AppSidebarFallback,
   appSidebarResizingAtom,
 } from '@affine/component/app-sidebar';
-import { BlockHubWrapper } from '@affine/component/block-hub';
-import type { DraggableTitleCellData } from '@affine/component/page-list';
-import { StyledTitleLink } from '@affine/component/page-list';
+import { RootBlockHub } from '@affine/component/block-hub';
+import {
+  type DraggableTitleCellData,
+  PageListDragOverlay,
+} from '@affine/component/page-list';
 import {
   MainContainer,
   ToolContainer,
   WorkspaceFallback,
 } from '@affine/component/workspace';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import {
-  rootBlockHubAtom,
-  rootWorkspacesMetadataAtom,
-} from '@affine/workspace/atom';
+import { rootWorkspacesMetadataAtom } from '@affine/workspace/atom';
 import { assertExists } from '@blocksuite/global/utils';
+import type { Page } from '@blocksuite/store';
 import type { DragEndEvent } from '@dnd-kit/core';
 import {
   DndContext,
@@ -28,21 +27,19 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { useBlockSuitePageMeta } from '@toeverything/hooks/use-block-suite-page-meta';
+import { loadPage } from '@toeverything/hooks/use-block-suite-workspace-page';
 import { currentWorkspaceIdAtom } from '@toeverything/infra/atom';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { nanoid } from 'nanoid';
-import type { PropsWithChildren, ReactElement } from 'react';
-import { lazy, Suspense, useCallback, useEffect } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { Map as YMap } from 'yjs';
 
 import { openQuickSearchModalAtom, openSettingModalAtom } from '../atoms';
 import { mainContainerAtom } from '../atoms/element';
-import { useAppSetting } from '../atoms/settings';
 import { AdapterProviderWrapper } from '../components/adapter-worksapce-wrapper';
 import { AppContainer } from '../components/affine/app-container';
 import { usePageHelper } from '../components/blocksuite/block-suite-page-list/utils';
-import { MigrationFallback } from '../components/migration-fallback';
 import type { IslandItemNames } from '../components/pure/help-island';
 import { HelpIsland } from '../components/pure/help-island';
 import { processCollectionsDrag } from '../components/pure/workspace-slider-bar/collections';
@@ -50,6 +47,8 @@ import {
   DROPPABLE_SIDEBAR_TRASH,
   RootAppSidebar,
 } from '../components/root-app-sidebar';
+import { WorkspaceUpgrade } from '../components/workspace-upgrade';
+import { useAppSettingHelper } from '../hooks/affine/use-app-setting-helper';
 import { useBlockSuiteMetaHelper } from '../hooks/affine/use-block-suite-meta-helper';
 import { useCurrentWorkspace } from '../hooks/current/use-current-workspace';
 import { useNavigateHelper } from '../hooks/use-navigate-helper';
@@ -98,7 +97,7 @@ const showList: IslandItemNames[] = environment.isDesktop
 
 export const CurrentWorkspaceContext = ({
   children,
-}: PropsWithChildren): ReactElement => {
+}: PropsWithChildren): ReactNode => {
   const workspaceId = useAtomValue(currentWorkspaceIdAtom);
   const metadata = useAtomValue(rootWorkspacesMetadataAtom);
   const exist = metadata.find(m => m.id === workspaceId);
@@ -111,12 +110,36 @@ export const CurrentWorkspaceContext = ({
   if (!exist) {
     return <WorkspaceFallback key="workspace-not-found" />;
   }
-  return <>{children}</>;
+  return children;
 };
 
 type WorkspaceLayoutProps = {
   incompatible?: boolean;
 };
+
+// fix https://github.com/toeverything/AFFiNE/issues/4825
+function useLoadWorkspacePages() {
+  const [currentWorkspace] = useCurrentWorkspace();
+  const pageMetas = useBlockSuitePageMeta(currentWorkspace.blockSuiteWorkspace);
+
+  useEffect(() => {
+    if (currentWorkspace) {
+      const timer = setTimeout(() => {
+        const pageIds = pageMetas.map(meta => meta.id);
+        const pages = pageIds
+          .map(id => currentWorkspace.blockSuiteWorkspace.getPage(id))
+          .filter((p): p is Page => !!p);
+        pages.forEach(page => {
+          loadPage(page, -10).catch(e => console.error(e));
+        });
+      }, 10 * 1000); // load pages after 10s
+      return () => {
+        clearTimeout(timer);
+      };
+    }
+    return;
+  }, [currentWorkspace, pageMetas]);
+}
 
 export const WorkspaceLayout = function WorkspacesSuspense({
   children,
@@ -172,12 +195,8 @@ export const WorkspaceLayoutInner = ({
   }, [currentWorkspace.blockSuiteWorkspace.doc]);
 
   const handleCreatePage = useCallback(() => {
-    const id = nanoid();
-    pageHelper.createPage(id);
-    const page = currentWorkspace.blockSuiteWorkspace.getPage(id);
-    assertExists(page);
-    return page;
-  }, [currentWorkspace.blockSuiteWorkspace, pageHelper]);
+    return pageHelper.createPage();
+  }, [pageHelper]);
 
   const [, setOpenQuickSearchModalAtom] = useAtom(openQuickSearchModalAtom);
   const handleOpenQuickSearchModal = useCallback(() => {
@@ -197,12 +216,9 @@ export const WorkspaceLayoutInner = ({
   const resizing = useAtomValue(appSidebarResizingAtom);
 
   const sensors = useSensors(
-    // Delay 10ms after mousedown
-    // Otherwise clicks would be intercepted
     useSensor(MouseSensor, {
       activationConstraint: {
-        delay: 500,
-        tolerance: 10,
+        distance: 10,
       },
     })
   );
@@ -230,7 +246,7 @@ export const WorkspaceLayoutInner = ({
     [moveToTrash, t]
   );
 
-  const [appSetting] = useAppSetting();
+  const { appSettings } = useAppSettingHelper();
   const location = useLocation();
   const { pageId } = useParams();
   const pageMeta = useBlockSuitePageMeta(
@@ -238,6 +254,8 @@ export const WorkspaceLayoutInner = ({
   ).find(meta => meta.id === pageId);
   const inTrashPage = pageMeta?.trash ?? false;
   const setMainContainer = useSetAtom(mainContainerAtom);
+
+  useLoadWorkspacePages();
 
   return (
     <>
@@ -269,12 +287,12 @@ export const WorkspaceLayoutInner = ({
           <Suspense fallback={<MainContainer ref={setMainContainer} />}>
             <MainContainer
               ref={setMainContainer}
-              padding={appSetting.clientBorder}
+              padding={appSettings.clientBorder}
               inTrashPage={inTrashPage}
             >
-              {incompatible ? <MigrationFallback /> : children}
+              {incompatible ? <WorkspaceUpgrade /> : children}
               <ToolContainer inTrashPage={inTrashPage}>
-                <BlockHubWrapper blockHubAtom={rootBlockHubAtom} />
+                <RootBlockHub />
                 <HelpIsland showList={pageId ? undefined : showList} />
               </ToolContainer>
             </MainContainer>
@@ -288,37 +306,25 @@ export const WorkspaceLayoutInner = ({
 };
 
 function PageListTitleCellDragOverlay() {
-  const { active } = useDndContext();
+  const { active, over } = useDndContext();
+  const [content, setContent] = useState<ReactNode>();
 
-  const renderChildren = useCallback(
-    ({ icon, pageTitle }: DraggableTitleCellData) => {
-      return (
-        <StyledTitleLink>
-          {icon}
-          <Content ellipsis={true} color="inherit">
-            {pageTitle}
-          </Content>
-        </StyledTitleLink>
-      );
-    },
-    []
-  );
+  useEffect(() => {
+    if (active) {
+      const data = active.data.current as DraggableTitleCellData;
+      setContent(data.pageTitle);
+    }
+    // do not update content since it may disappear because of virtual rendering
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.id]);
+
+  const renderChildren = useCallback(() => {
+    return <PageListDragOverlay over={!!over}>{content}</PageListDragOverlay>;
+  }, [content, over]);
 
   return (
-    <DragOverlay
-      style={{
-        zIndex: 1001,
-        backgroundColor: 'var(--affine-black-10)',
-        padding: '0 30px',
-        cursor: 'default',
-        borderRadius: 10,
-        ...displayFlex('flex-start', 'center'),
-      }}
-      dropAnimation={null}
-    >
-      {active
-        ? renderChildren(active.data.current as DraggableTitleCellData)
-        : null}
+    <DragOverlay dropAnimation={null}>
+      {active ? renderChildren() : null}
     </DragOverlay>
   );
 }

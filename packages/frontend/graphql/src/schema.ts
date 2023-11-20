@@ -32,6 +32,14 @@ export interface Scalars {
   Upload: { input: File; output: File };
 }
 
+export enum InvoiceStatus {
+  Draft = 'Draft',
+  Open = 'Open',
+  Paid = 'Paid',
+  Uncollectible = 'Uncollectible',
+  Void = 'Void',
+}
+
 export enum NewFeaturesKind {
   EarlyAccess = 'EarlyAccess',
 }
@@ -42,6 +50,35 @@ export enum Permission {
   Owner = 'Owner',
   Read = 'Read',
   Write = 'Write',
+}
+
+/** The mode which the public page default in */
+export enum PublicPageMode {
+  Edgeless = 'Edgeless',
+  Page = 'Page',
+}
+
+export enum SubscriptionPlan {
+  Enterprise = 'Enterprise',
+  Free = 'Free',
+  Pro = 'Pro',
+  Team = 'Team',
+}
+
+export enum SubscriptionRecurring {
+  Monthly = 'Monthly',
+  Yearly = 'Yearly',
+}
+
+export enum SubscriptionStatus {
+  Active = 'Active',
+  Canceled = 'Canceled',
+  Incomplete = 'Incomplete',
+  IncompleteExpired = 'IncompleteExpired',
+  PastDue = 'PastDue',
+  Paused = 'Paused',
+  Trialing = 'Trialing',
+  Unpaid = 'Unpaid',
 }
 
 export interface UpdateWorkspaceInput {
@@ -99,6 +136,21 @@ export type AllBlobSizesQuery = {
   collectAllBlobSizes: { __typename?: 'WorkspaceBlobSizes'; size: number };
 };
 
+export type CancelSubscriptionMutationVariables = Exact<{
+  idempotencyKey: Scalars['String']['input'];
+}>;
+
+export type CancelSubscriptionMutation = {
+  __typename?: 'Mutation';
+  cancelSubscription: {
+    __typename?: 'UserSubscription';
+    id: string;
+    status: SubscriptionStatus;
+    nextBillAt: string | null;
+    canceledAt: string | null;
+  };
+};
+
 export type ChangeEmailMutationVariables = Exact<{
   token: Scalars['String']['input'];
 }>;
@@ -128,6 +180,22 @@ export type ChangePasswordMutation = {
     avatarUrl: string | null;
     email: string;
   };
+};
+
+export type CheckoutMutationVariables = Exact<{
+  recurring: SubscriptionRecurring;
+  idempotencyKey: Scalars['String']['input'];
+}>;
+
+export type CheckoutMutation = { __typename?: 'Mutation'; checkout: string };
+
+export type CreateCustomerPortalMutationVariables = Exact<{
+  [key: string]: never;
+}>;
+
+export type CreateCustomerPortalMutation = {
+  __typename?: 'Mutation';
+  createCustomerPortal: string;
 };
 
 export type CreateWorkspaceMutationVariables = Exact<{
@@ -173,7 +241,7 @@ export type GetCurrentUserQuery = {
     avatarUrl: string | null;
     createdAt: string | null;
     token: { __typename?: 'TokenType'; sessionToken: string | null };
-  };
+  } | null;
 };
 
 export type GetInviteInfoQueryVariables = Exact<{
@@ -272,13 +340,20 @@ export type GetWorkspacePublicByIdQuery = {
   workspace: { __typename?: 'WorkspaceType'; public: boolean };
 };
 
-export type GetWorkspaceSharedPagesQueryVariables = Exact<{
+export type GetWorkspacePublicPagesQueryVariables = Exact<{
   workspaceId: Scalars['String']['input'];
 }>;
 
-export type GetWorkspaceSharedPagesQuery = {
+export type GetWorkspacePublicPagesQuery = {
   __typename?: 'Query';
-  workspace: { __typename?: 'WorkspaceType'; sharedPages: Array<string> };
+  workspace: {
+    __typename?: 'WorkspaceType';
+    publicPages: Array<{
+      __typename?: 'WorkspacePage';
+      id: string;
+      mode: PublicPageMode;
+    }>;
+  };
 };
 
 export type GetWorkspaceQueryVariables = Exact<{
@@ -297,6 +372,38 @@ export type GetWorkspacesQuery = {
   workspaces: Array<{ __typename?: 'WorkspaceType'; id: string }>;
 };
 
+export type GetInvoicesCountQueryVariables = Exact<{ [key: string]: never }>;
+
+export type GetInvoicesCountQuery = {
+  __typename?: 'Query';
+  currentUser: { __typename?: 'UserType'; invoiceCount: number } | null;
+};
+
+export type InvoicesQueryVariables = Exact<{
+  take: Scalars['Int']['input'];
+  skip: Scalars['Int']['input'];
+}>;
+
+export type InvoicesQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    invoices: Array<{
+      __typename?: 'UserInvoice';
+      id: string;
+      status: InvoiceStatus;
+      plan: SubscriptionPlan;
+      recurring: SubscriptionRecurring;
+      currency: string;
+      amount: number;
+      reason: string;
+      lastPaymentError: string | null;
+      link: string | null;
+      createdAt: string;
+    }>;
+  } | null;
+};
+
 export type LeaveWorkspaceMutationVariables = Exact<{
   workspaceId: Scalars['String']['input'];
   workspaceName: Scalars['String']['input'];
@@ -308,11 +415,56 @@ export type LeaveWorkspaceMutation = {
   leaveWorkspace: boolean;
 };
 
+export type PricesQueryVariables = Exact<{ [key: string]: never }>;
+
+export type PricesQuery = {
+  __typename?: 'Query';
+  prices: Array<{
+    __typename?: 'SubscriptionPrice';
+    type: string;
+    plan: SubscriptionPlan;
+    currency: string;
+    amount: number;
+    yearlyAmount: number;
+  }>;
+};
+
+export type PublishPageMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  pageId: Scalars['String']['input'];
+  mode?: InputMaybe<PublicPageMode>;
+}>;
+
+export type PublishPageMutation = {
+  __typename?: 'Mutation';
+  publishPage: {
+    __typename?: 'WorkspacePage';
+    id: string;
+    mode: PublicPageMode;
+  };
+};
+
 export type RemoveAvatarMutationVariables = Exact<{ [key: string]: never }>;
 
 export type RemoveAvatarMutation = {
   __typename?: 'Mutation';
   removeAvatar: { __typename?: 'RemoveAvatar'; success: boolean };
+};
+
+export type ResumeSubscriptionMutationVariables = Exact<{
+  idempotencyKey: Scalars['String']['input'];
+}>;
+
+export type ResumeSubscriptionMutation = {
+  __typename?: 'Mutation';
+  resumeSubscription: {
+    __typename?: 'UserSubscription';
+    id: string;
+    status: SubscriptionStatus;
+    nextBillAt: string | null;
+    start: string;
+    end: string;
+  };
 };
 
 export type RevokeMemberPermissionMutationVariables = Exact<{
@@ -325,14 +477,19 @@ export type RevokeMemberPermissionMutation = {
   revoke: boolean;
 };
 
-export type RevokePageMutationVariables = Exact<{
+export type RevokePublicPageMutationVariables = Exact<{
   workspaceId: Scalars['String']['input'];
   pageId: Scalars['String']['input'];
 }>;
 
-export type RevokePageMutation = {
+export type RevokePublicPageMutation = {
   __typename?: 'Mutation';
-  revokePage: boolean;
+  revokePublicPage: {
+    __typename?: 'WorkspacePage';
+    id: string;
+    mode: PublicPageMode;
+    public: boolean;
+  };
 };
 
 export type SendChangeEmailMutationVariables = Exact<{
@@ -386,13 +543,6 @@ export type SetWorkspacePublicByIdMutation = {
   updateWorkspace: { __typename?: 'WorkspaceType'; id: string };
 };
 
-export type SharePageMutationVariables = Exact<{
-  workspaceId: Scalars['String']['input'];
-  pageId: Scalars['String']['input'];
-}>;
-
-export type SharePageMutation = { __typename?: 'Mutation'; sharePage: boolean };
-
 export type SignInMutationVariables = Exact<{
   email: Scalars['String']['input'];
   password: Scalars['String']['input'];
@@ -417,6 +567,42 @@ export type SignUpMutation = {
   signUp: {
     __typename?: 'UserType';
     token: { __typename?: 'TokenType'; token: string };
+  };
+};
+
+export type SubscriptionQueryVariables = Exact<{ [key: string]: never }>;
+
+export type SubscriptionQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    subscription: {
+      __typename?: 'UserSubscription';
+      id: string;
+      status: SubscriptionStatus;
+      plan: SubscriptionPlan;
+      recurring: SubscriptionRecurring;
+      start: string;
+      end: string;
+      nextBillAt: string | null;
+      canceledAt: string | null;
+    } | null;
+  } | null;
+};
+
+export type UpdateSubscriptionMutationVariables = Exact<{
+  recurring: SubscriptionRecurring;
+  idempotencyKey: Scalars['String']['input'];
+}>;
+
+export type UpdateSubscriptionMutation = {
+  __typename?: 'Mutation';
+  updateSubscriptionRecurring: {
+    __typename?: 'UserSubscription';
+    id: string;
+    plan: SubscriptionPlan;
+    recurring: SubscriptionRecurring;
+    nextBillAt: string | null;
   };
 };
 
@@ -453,15 +639,6 @@ export type AcceptInviteByInviteIdMutationVariables = Exact<{
 export type AcceptInviteByInviteIdMutation = {
   __typename?: 'Mutation';
   acceptInviteById: boolean;
-};
-
-export type AcceptInviteByWorkspaceIdMutationVariables = Exact<{
-  workspaceId: Scalars['String']['input'];
-}>;
-
-export type AcceptInviteByWorkspaceIdMutation = {
-  __typename?: 'Mutation';
-  acceptInvite: boolean;
 };
 
 export type Queries =
@@ -526,9 +703,9 @@ export type Queries =
       response: GetWorkspacePublicByIdQuery;
     }
   | {
-      name: 'getWorkspaceSharedPagesQuery';
-      variables: GetWorkspaceSharedPagesQueryVariables;
-      response: GetWorkspaceSharedPagesQuery;
+      name: 'getWorkspacePublicPagesQuery';
+      variables: GetWorkspacePublicPagesQueryVariables;
+      response: GetWorkspacePublicPagesQuery;
     }
   | {
       name: 'getWorkspaceQuery';
@@ -539,6 +716,26 @@ export type Queries =
       name: 'getWorkspacesQuery';
       variables: GetWorkspacesQueryVariables;
       response: GetWorkspacesQuery;
+    }
+  | {
+      name: 'getInvoicesCountQuery';
+      variables: GetInvoicesCountQueryVariables;
+      response: GetInvoicesCountQuery;
+    }
+  | {
+      name: 'invoicesQuery';
+      variables: InvoicesQueryVariables;
+      response: InvoicesQuery;
+    }
+  | {
+      name: 'pricesQuery';
+      variables: PricesQueryVariables;
+      response: PricesQuery;
+    }
+  | {
+      name: 'subscriptionQuery';
+      variables: SubscriptionQueryVariables;
+      response: SubscriptionQuery;
     };
 
 export type Mutations =
@@ -553,6 +750,11 @@ export type Mutations =
       response: SetBlobMutation;
     }
   | {
+      name: 'cancelSubscriptionMutation';
+      variables: CancelSubscriptionMutationVariables;
+      response: CancelSubscriptionMutation;
+    }
+  | {
       name: 'changeEmailMutation';
       variables: ChangeEmailMutationVariables;
       response: ChangeEmailMutation;
@@ -561,6 +763,16 @@ export type Mutations =
       name: 'changePasswordMutation';
       variables: ChangePasswordMutationVariables;
       response: ChangePasswordMutation;
+    }
+  | {
+      name: 'checkoutMutation';
+      variables: CheckoutMutationVariables;
+      response: CheckoutMutation;
+    }
+  | {
+      name: 'createCustomerPortalMutation';
+      variables: CreateCustomerPortalMutationVariables;
+      response: CreateCustomerPortalMutation;
     }
   | {
       name: 'createWorkspaceMutation';
@@ -583,9 +795,19 @@ export type Mutations =
       response: LeaveWorkspaceMutation;
     }
   | {
+      name: 'publishPageMutation';
+      variables: PublishPageMutationVariables;
+      response: PublishPageMutation;
+    }
+  | {
       name: 'removeAvatarMutation';
       variables: RemoveAvatarMutationVariables;
       response: RemoveAvatarMutation;
+    }
+  | {
+      name: 'resumeSubscriptionMutation';
+      variables: ResumeSubscriptionMutationVariables;
+      response: ResumeSubscriptionMutation;
     }
   | {
       name: 'revokeMemberPermissionMutation';
@@ -593,9 +815,9 @@ export type Mutations =
       response: RevokeMemberPermissionMutation;
     }
   | {
-      name: 'revokePageMutation';
-      variables: RevokePageMutationVariables;
-      response: RevokePageMutation;
+      name: 'revokePublicPageMutation';
+      variables: RevokePublicPageMutationVariables;
+      response: RevokePublicPageMutation;
     }
   | {
       name: 'sendChangeEmailMutation';
@@ -623,11 +845,6 @@ export type Mutations =
       response: SetWorkspacePublicByIdMutation;
     }
   | {
-      name: 'sharePageMutation';
-      variables: SharePageMutationVariables;
-      response: SharePageMutation;
-    }
-  | {
       name: 'signInMutation';
       variables: SignInMutationVariables;
       response: SignInMutation;
@@ -636,6 +853,11 @@ export type Mutations =
       name: 'signUpMutation';
       variables: SignUpMutationVariables;
       response: SignUpMutation;
+    }
+  | {
+      name: 'updateSubscriptionMutation';
+      variables: UpdateSubscriptionMutationVariables;
+      response: UpdateSubscriptionMutation;
     }
   | {
       name: 'uploadAvatarMutation';
@@ -651,9 +873,4 @@ export type Mutations =
       name: 'acceptInviteByInviteIdMutation';
       variables: AcceptInviteByInviteIdMutationVariables;
       response: AcceptInviteByInviteIdMutation;
-    }
-  | {
-      name: 'acceptInviteByWorkspaceIdMutation';
-      variables: AcceptInviteByWorkspaceIdMutationVariables;
-      response: AcceptInviteByWorkspaceIdMutation;
     };

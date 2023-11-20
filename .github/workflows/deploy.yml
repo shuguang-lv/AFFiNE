@@ -1,15 +1,10 @@
 name: Deploy
 
 on:
-  push:
-    branches:
-      - master
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+-canary.[0-9]+'
   workflow_dispatch:
     inputs:
       flavor:
-        description: 'Build type (canary, beta, internal or stable)'
+        description: 'Build type (canary, beta, or stable)'
         type: string
         default: canary
 
@@ -40,7 +35,6 @@ jobs:
   build-core:
     name: Build @affine/core
     runs-on: ubuntu-latest
-    environment: production
 
     steps:
       - uses: actions/checkout@v4
@@ -68,7 +62,6 @@ jobs:
   build-storage:
     name: Build Storage
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.flavor }}
 
     steps:
       - uses: actions/checkout@v4
@@ -90,7 +83,6 @@ jobs:
   build-storage-arm64:
     name: Build Storage arm64
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.flavor }}
 
     steps:
       - uses: actions/checkout@v4
@@ -112,7 +104,6 @@ jobs:
   build-docker:
     name: Build Docker
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.flavor }}
     needs:
       - build-server
       - build-core
@@ -153,18 +144,18 @@ jobs:
           fi
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           logout: false
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
       - name: Build front Dockerfile
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
@@ -177,7 +168,7 @@ jobs:
       # setup node without cache configuration
       # Prisma cache is not compatible with docker build cache
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           registry-url: https://npm.pkg.github.com
@@ -192,7 +183,7 @@ jobs:
         run: yarn workspace @affine/server prisma generate
 
       - name: Build graphql Dockerfile
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
@@ -204,7 +195,7 @@ jobs:
 
   deploy:
     name: Deploy to cluster
-    if: ${{ github.event_name == 'workflow_dispatch' || github.ref_type == 'tag' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     environment: ${{ github.event.inputs.flavor }}
     permissions:
       contents: 'write'
@@ -247,3 +238,5 @@ jobs:
           REDIS_HOST: ${{ secrets.REDIS_HOST }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           CLOUD_SQL_IAM_ACCOUNT: ${{ secrets.CLOUD_SQL_IAM_ACCOUNT }}
+          STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+          STRIPE_WEBHOOK_KEY: ${{ secrets.STRIPE_WEBHOOK_KEY }}
